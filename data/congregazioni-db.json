@@ -1,0 +1,175 @@
+{
+  "user": {
+    "username": "admin",
+    "password_hash": "$2b$10$mp2y6s4b.vSYalmAT6S5GulpCEvHmCLfNcIkjpAK5vltsCGU.suUq",
+    "updated_at": "2026-09-24T13:54:26.998Z"
+  },
+  "neon_url": "",
+  "congregations": [
+    {
+      "id": "cong-1",
+      "name": "Milano Sud",
+      "city": "Milano",
+      "address": "Via Roma 12",
+      "notes": "Adunanza Giovedì e Domenica"
+    },
+    {
+      "id": "cong-2",
+      "name": "Napoli Centro",
+      "city": "Napoli",
+      "address": "Corso Umberto 45",
+      "notes": "Adunanza Martedì e Sabato"
+    },
+    {
+      "id": "cong-3",
+      "name": "Roma Nord",
+      "city": "Roma",
+      "address": "Viale Libia 80",
+      "notes": "Adunanza Mercoledì e Domenica"
+    }
+  ],
+  "publishers": [
+    {
+      "id": "pub-1",
+      "congregation_id": "cong-1",
+      "first_name": "Marco",
+      "last_name": "Rossi",
+      "birth_date": "1988-04-12",
+      "age": 38,
+      "gender": "M",
+      "phone": "+39 340 1234567",
+      "email": "marco.rossi@example.com",
+      "address": "Via Dante 10, Milano",
+      "privilege_codes": "SM",
+      "group_number": "1",
+      "is_active": true,
+      "notes": "Incaricato reparto Audio/Video"
+    },
+    {
+      "id": "pub-2",
+      "congregation_id": "cong-1",
+      "first_name": "Elena",
+      "last_name": "Bianchi",
+      "birth_date": "1995-09-20",
+      "age": 31,
+      "gender": "F",
+      "phone": "+39 349 9876543",
+      "email": "elena.bianchi@example.com",
+      "address": "Via Garibaldi 15, Milano",
+      "privilege_codes": "PA",
+      "group_number": "2",
+      "is_active": true,
+      "notes": "Disponibilità servizio mattutino"
+    },
+    {
+      "id": "pub-3",
+      "congregation_id": "cong-2",
+      "first_name": "Giuseppe",
+      "last_name": "Esposito",
+      "birth_date": "1982-11-05",
+      "age": 43,
+      "gender": "M",
+      "phone": "+39 333 4567890",
+      "email": "giuseppe.esposito@example.com",
+      "address": "Via Toledo 22, Napoli",
+      "privilege_codes": "SG",
+      "group_number": "1",
+      "is_active": true,
+      "notes": "Sorvegliante gruppo 1"
+    },
+    {
+      "id": "pub-4",
+      "congregation_id": "cong-3",
+      "first_name": "Antonio",
+      "last_name": "Verdi",
+      "birth_date": "1974-02-18",
+      "age": 52,
+      "gender": "M",
+      "phone": "+39 347 1122334",
+      "email": "antonio.verdi@example.com",
+      "address": "Via Nomentana 100, Roma",
+      "privilege_codes": "A",
+      "group_number": "1",
+      "is_active": true,
+      "notes": "Coordinatore corpo degli anziani"
+    },
+    {
+      "id": "pub-5",
+      "congregation_id": "cong-3",
+      "first_name": "Chiara",
+      "last_name": "Russo",
+      "birth_date": "1989-07-30",
+      "age": 36,
+      "gender": "F",
+      "phone": "+39 328 5566778",
+      "email": "chiara.russo@example.com",
+      "address": "Viale Somalia 40, Roma",
+      "privilege_codes": "PR",
+      "group_number": "2",
+      "is_active": true,
+      "notes": "Pioniera regolare da 5 anni"
+    }
+  ],
+  "privileges": [
+    {
+      "id": "priv-a",
+      "code": "A",
+      "label": "Anziano",
+      "color": "#d97706",
+      "is_default": true
+    },
+    {
+      "id": "priv-sm",
+      "code": "SM",
+      "label": "Servitore di Ministero",
+      "color": "#2563eb",
+      "is_default": true
+    },
+    {
+      "id": "priv-pr",
+      "code": "PR",
+      "label": "Pioniere Regolare",
+      "color": "#059669",
+      "is_default": true
+    },
+    {
+      "id": "priv-a-pr",
+      "code": "A-PR",
+      "label": "Anziano & Pioniere Regolare",
+      "color": "#0d9488",
+      "is_default": true
+    },
+    {
+      "id": "priv-sm-pr",
+      "code": "SM-PR",
+      "label": "Servitore & Pioniere Regolare",
+      "color": "#4f46e5",
+      "is_default": true
+    },
+    {
+      "id": "priv-pa",
+      "code": "PA",
+      "label": "Pioniere Ausiliario",
+      "color": "#0891b2",
+      "is_default": true
+    },
+    {
+      "id": "priv-sg",
+      "code": "SG",
+      "label": "Sorvegliante di Gruppo",
+      "color": "#9333ea",
+      "is_default": true
+    },
+    {
+      "id": "priv-p",
+      "code": "P",
+      "label": "Proclamatore",
+      "color": "#64748b",
+      "is_default": true
+    }
+  ],
+  "settings": {
+    "app_title": "Database Congregazioni",
+    "theme": "Congregazioni"
+  }
+}
