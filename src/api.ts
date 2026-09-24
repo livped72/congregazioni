@@ -40,7 +40,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     throw new Error('Sessione scaduta o non autorizzata. Effettua nuovamente l\'accesso.');
   }
 
-  const data = await res.json();
+  let data: any = {};
+  const text = await res.text();
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(text || `Errore HTTP ${res.status}`);
+  }
+
   if (!res.ok) {
     throw new Error(data.error || `Errore HTTP ${res.status}`);
   }
@@ -61,7 +68,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ username, password })
     }),
-  changeCredentials: (currentPassword: string, newUsername?: string, newPassword?: string) =>
+  resetPassword: (username: string, newPassword: string) =>
+    request<{ success: boolean; token: string; username: string; message: string }>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ username, newPassword })
+    }),
+  changeCredentials: (currentPassword?: string, newUsername?: string, newPassword?: string) =>
     request<{ success: boolean; token: string; username: string; message: string }>('/api/auth/change-credentials', {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newUsername, newPassword })

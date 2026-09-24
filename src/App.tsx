@@ -149,7 +149,7 @@ export const App: React.FC = () => {
     setIsAuthenticated(false);
   };
 
-  const handleChangeCredentials = async (currentPassword: string, newUsername?: string, newPassword?: string) => {
+  const handleChangeCredentials = async (currentPassword?: string, newUsername?: string, newPassword?: string) => {
     const res = await api.changeCredentials(currentPassword, newUsername, newPassword);
     auth.setSession(res.token, res.username);
     setCurrentUsername(res.username);

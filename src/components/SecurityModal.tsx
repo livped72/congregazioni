@@ -5,7 +5,7 @@ interface SecurityModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUsername: string;
-  onChangeCredentials: (currentPassword: string, newUsername?: string, newPassword?: string) => Promise<void>;
+  onChangeCredentials: (currentPassword?: string, newUsername?: string, newPassword?: string) => Promise<void>;
 }
 
 export const SecurityModal: React.FC<SecurityModalProps> = ({
@@ -26,8 +26,8 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentPassword) {
-      setError('Inserisci la password attuale per confermare la tua identità.');
+    if (!newPassword && newUsername === currentUsername) {
+      setError('Inserisci una nuova password o modifica l\'username.');
       return;
     }
 
@@ -119,12 +119,11 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
 
           <div className="pt-2 border-t border-slate-100">
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Password Attuale *
+              Password Attuale (opzionale)
             </label>
             <input
               type="password"
-              required
-              placeholder="Inserisci la password corrente"
+              placeholder="Inserisci la password corrente se richiesta"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-slate-50/80 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
