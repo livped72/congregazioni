@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import Papa from 'papaparse';
-import { X, Upload, FileText, CheckCircle2, AlertCircle, Download, ArrowRight, ShieldCheck } from 'lucide-react';
+import { X, Upload, FileText, CheckCircle2, AlertCircle, Download, ArrowRight } from 'lucide-react';
 import { Congregation } from '../types';
+import { parseItalianFullName, inferGender, getDisplayName } from '../nameUtils';
 
 interface CsvImportModalProps {
   isOpen: boolean;
@@ -15,93 +16,44 @@ interface CsvImportModalProps {
 const normKey = (s: string): string =>
   s.toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')               // diacritics
-    .replace(/[''’`"_\-\.\/\\;:,\(\)\[\]\{\}]/g, ' ') // punctuation & quotes
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[''’`"_\-\.\/\\;:,\(\)\[\]\{\}]/g, ' ')
     .replace(/[^a-z0-9 ]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
-// Guess congregation name from file name (e.g. "B-Giffoni.csv" -> "Giffoni")
+// Guess congregation name from file name (e.g. "SALERNO PORTO -Tabella 1.csv" -> "Salerno Porto")
 function guessCongregationFromFileName(fileName: string): string {
   if (!fileName) return '';
   let clean = fileName.replace(/\.[^/.]+$/, ''); // strip extension
-  // Remove common export prefixes like "B-", "b_", "Congregazione-", "Elenco-"
-  clean = clean.replace(/^(b[\-_]|congregazione[\-_]|elenco[\-_]|lista[\-_]|proclamatori[\-_])/i, '');
+  // Remove sheet suffix like "-Tabella 1", "_Foglio 1", " - Sheet 1"
+  clean = clean.replace(/[\s\-_]*(tabella|foglio|sheet)\s*\d*$/i, '');
+  // Remove common export prefixes like "A-", "B-", "b_", "Congregazione-", "Elenco-"
+  clean = clean.replace(/^([a-z][\-_]|congregazione[\-_]|elenco[\-_]|lista[\-_]|proclamatori[\-_])/i, '');
   clean = clean.trim();
-  if (clean.length >= 2 && !/^(tabella|sheet|export|dati|backup|archivio)$/i.test(clean)) {
+  if (
+    clean.length >= 2 &&
+    !/^(tabella|sheet|export|dati|backup|archivio|anziani|servitori|pionieri|inattivi|gruppo)$/i.test(clean)
+  ) {
     return clean;
   }
   return '';
 }
 
-// Split full Italian name considering compound surnames (e.g. "Della Rocca Matteo", "De Simone Maria")
-function parseItalianFullName(full: string): { last_name: string; first_name: string } {
-  const parts = full.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { last_name: '', first_name: '' };
-  if (parts.length === 1) return { last_name: parts[0], first_name: '' };
-
-  const compoundPrefixes = new Set([
-    'de', 'di', 'da', 'del', 'della', 'delle', 'dello', 'dei', 'degli',
-    'lo', 'la', 'li', 'le', 'san', 'santa', 'sant'
-  ]);
-
-  const p0 = parts[0].toLowerCase().replace(/[''’`]/g, '');
-  if (compoundPrefixes.has(p0) && parts.length >= 3) {
-    return {
-      last_name: `${parts[0]} ${parts[1]}`,
-      first_name: parts.slice(2).join(' ')
-    };
-  }
-
-  return {
-    last_name: parts[0],
-    first_name: parts.slice(1).join(' ')
-  };
-}
-
-// Infer gender if not explicitly present in CSV
-function inferGender(firstName: string, privilegeCodes: string): 'M' | 'F' {
-  const priv = (privilegeCodes || '').toUpperCase();
-  // Appointed elders, ministerial servants, or group overseers are brothers
-  if (priv.includes('A') || priv.includes('SM') || priv.includes('SOG') || priv.includes('SG')) {
-    return 'M';
-  }
-
-  const maleExceptionNames = new Set([
-    'andrea', 'luca', 'mattia', 'nicola', 'elia', 'battista', 'tobia',
-    'gianluca', 'gianmaria', 'sasha', 'barnaba', 'costa'
-  ]);
-
-  const fn = firstName.trim().toLowerCase().split(/\s+/)[0] || '';
-  if (!fn) return 'M';
-  if (maleExceptionNames.has(fn)) return 'M';
-  if (fn.endsWith('a')) return 'F';
-
-  const femaleExceptions = new Set([
-    'elisabetta', 'ines', 'ester', 'noemi', 'miriam', 'ruth', 'carmen',
-    'alice', 'beatrice', 'irene', 'adele', 'matilde', 'clelia', 'rachel',
-    'nicole', 'marion', 'astrid'
-  ]);
-  if (femaleExceptions.has(fn)) return 'F';
-
-  return 'M';
-}
-
-// Detect true header line and delimiter (handles Numbers "Tabella 1", empty lines, etc.)
-function detectCsvHeaderAndDelimiter(rawText: string): { delimiter: string; headerIndex: number } {
+// Detect header line, delimiter, and whether file has headers
+function detectCsvHeaderAndDelimiter(rawText: string): { delimiter: string; headerIndex: number; hasHeader: boolean } {
   let clean = rawText;
   if (clean.charCodeAt(0) === 0xFEFF) clean = clean.slice(1);
   const lines = clean.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
-  if (lines.length === 0) return { delimiter: ';', headerIndex: 0 };
+  if (lines.length === 0) return { delimiter: ';', headerIndex: 0, hasHeader: false };
 
   const candidateDelims = [';', ',', '\t', '|'];
   const headerKeywords = [
-    'cognome', 'nome', 'congregazione', 'privilegio', 'privilegi',
+    'cognome', 'nome', 'congregazione', 'privilegio', 'privilegi', 'inc', 'pr',
     'eta', 'data', 'note', 'telefono', 'sesso', 'nominativo', 'proclamatore',
     'surname', 'name', 'congregation', 'privilege', 'age', 'date', 'notes'
   ];
 
-  // Pass 1: Look for line with >= 2 matching header keywords
   let bestKeywordCount = 0;
   let bestKeywordDelim = ';';
   let bestKeywordLine = 0;
@@ -112,10 +64,10 @@ function detectCsvHeaderAndDelimiter(rawText: string): { delimiter: string; head
       const parts = line.split(d).map((p) => normKey(p)).filter(Boolean);
       if (parts.length < 2) continue;
       const matches = parts.filter((p) =>
-        headerKeywords.some((k) => p.includes(k) || k.includes(p))
+        headerKeywords.some((k) => p === k || (p.length >= 3 && k.length >= 3 && (p.includes(k) || k.includes(p))))
       ).length;
 
-      if (matches >= 2 && matches > bestKeywordCount) {
+      if (matches >= 1 && matches > bestKeywordCount) {
         bestKeywordCount = matches;
         bestKeywordDelim = d;
         bestKeywordLine = lineIdx;
@@ -123,11 +75,11 @@ function detectCsvHeaderAndDelimiter(rawText: string): { delimiter: string; head
     }
   }
 
-  if (bestKeywordCount >= 2) {
-    return { delimiter: bestKeywordDelim, headerIndex: bestKeywordLine };
+  if (bestKeywordCount >= 1) {
+    return { delimiter: bestKeywordDelim, headerIndex: bestKeywordLine, hasHeader: true };
   }
 
-  // Pass 2: Fallback to column consistency scoring
+  // Fallback to separator consistency
   let bestScore = -1;
   let fallbackDelim = ';';
   let fallbackIndex = 0;
@@ -147,7 +99,7 @@ function detectCsvHeaderAndDelimiter(rawText: string): { delimiter: string; head
     }
   }
 
-  return { delimiter: fallbackDelim, headerIndex: fallbackIndex };
+  return { delimiter: fallbackDelim, headerIndex: fallbackIndex, hasHeader: false };
 }
 
 export const CsvImportModal: React.FC<CsvImportModalProps> = ({
@@ -192,7 +144,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
         if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
         text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-        // Automatic detection of real header and delimiter
+        // Automatic detection of real header, delimiter and headerless mode
         const detection = detectCsvHeaderAndDelimiter(text);
         setDetectedDelimiter(detection.delimiter);
 
@@ -207,7 +159,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
 
         Papa.parse(cleanCsvText, {
           delimiter: detection.delimiter,
-          header: true,
+          header: detection.hasHeader,
           skipEmptyLines: true,
           complete: (results) => {
             if (!results.data || results.data.length === 0) {
@@ -215,28 +167,19 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
               return;
             }
 
-            const rawKeys = results.meta.fields || Object.keys((results.data[0] as any) || {});
+            const rawKeys = results.meta.fields || [];
             const keyMap: Record<string, string> = {};
             rawKeys.forEach((k) => {
               keyMap[normKey(k)] = k;
             });
 
+            // Exact key getter: checks exact normalized key first
             const getVal = (row: any, ...variants: string[]): string => {
               for (const v of variants) {
                 const nv = normKey(v);
                 if (keyMap[nv] !== undefined && row[keyMap[nv]] != null) {
                   const val = String(row[keyMap[nv]]).trim();
                   if (val) return val;
-                }
-              }
-              // Partial search
-              for (const v of variants) {
-                const nv = normKey(v);
-                for (const mk of Object.keys(keyMap)) {
-                  if (mk.includes(nv) || nv.includes(mk)) {
-                    const val = row[keyMap[mk]];
-                    if (val != null && String(val).trim()) return String(val).trim();
-                  }
                 }
               }
               return '';
@@ -246,38 +189,101 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
             let lastSeenCongregation = fileCongName;
 
             const normalized = (results.data as any[]).map((row: any) => {
-              // 1. Name resolution
-              let first_name = getVal(row, 'nome', 'first name', 'firstname', 'name');
-              let last_name = getVal(row, 'cognome', 'last name', 'lastname', 'surname');
+              let first_name = '';
+              let last_name = '';
 
-              // Combined name field
-              if (!first_name && !last_name) {
-                const full = getVal(
-                  row,
-                  'cognome e nome',
-                  'nome e cognome',
-                  'nominativo',
-                  'nome completo',
-                  'full name',
-                  'fullname',
-                  'proclamatore'
+              if (detection.hasHeader) {
+                // Priority 1: Check combined name column first
+                const combinedKey = Object.keys(keyMap).find((k) =>
+                  [
+                    'cognome e nome',
+                    'nome e cognome',
+                    'cognome nome',
+                    'nome cognome',
+                    'nominativo',
+                    'nome completo',
+                    'full name',
+                    'fullname',
+                    'proclamatore',
+                    'persona'
+                  ].includes(k)
                 );
 
-                if (full) {
-                  const parsedName = parseItalianFullName(full);
-                  last_name = parsedName.last_name;
-                  first_name = parsedName.first_name;
+                if (combinedKey) {
+                  const full = String(row[keyMap[combinedKey]] || '').trim();
+                  if (full) {
+                    if (
+                      combinedKey.startsWith('nome e cognome') ||
+                      combinedKey.startsWith('nome cognome') ||
+                      combinedKey === 'full name' ||
+                      combinedKey === 'fullname'
+                    ) {
+                      const parts = full.split(/\s+/).filter(Boolean);
+                      first_name = parts[0] || '';
+                      last_name = parts.slice(1).join(' ');
+                    } else {
+                      const parsedName = parseItalianFullName(full);
+                      last_name = parsedName.last_name;
+                      first_name = parsedName.first_name;
+                    }
+                  }
+                } else {
+                  // Priority 2: Check separate cognome and nome columns (exact match only!)
+                  const cognomeKey = Object.keys(keyMap).find((k) =>
+                    ['cognome', 'last name', 'lastname', 'surname', 'cognome proclamatore'].includes(k)
+                  );
+                  const nomeKey = Object.keys(keyMap).find((k) =>
+                    ['nome', 'first name', 'firstname', 'name', 'nome proclamatore'].includes(k)
+                  );
+
+                  if (cognomeKey && row[keyMap[cognomeKey]] != null) {
+                    last_name = String(row[keyMap[cognomeKey]]).trim();
+                  }
+                  if (nomeKey && row[keyMap[nomeKey]] != null) {
+                    first_name = String(row[keyMap[nomeKey]]).trim();
+                  }
+                }
+              } else {
+                // Headerless mode: check first textual non-empty cell
+                const values = Array.isArray(row) ? row : Object.values(row);
+                for (const v of values) {
+                  const str = String(v || '').trim();
+                  if (str && /[a-zA-Z]/.test(str)) {
+                    const parsedName = parseItalianFullName(str);
+                    last_name = parsedName.last_name;
+                    first_name = parsedName.first_name;
+                    break;
+                  }
                 }
               }
 
-              // Positional fallback if no header matched
-              if (!first_name && !last_name && rawKeys.length >= 1) {
-                const v0 = row[rawKeys[0]] != null ? String(row[rawKeys[0]]).trim() : '';
-                if (v0) {
-                  const parsedName = parseItalianFullName(v0);
-                  last_name = parsedName.last_name;
-                  first_name = parsedName.first_name;
+              // Positional fallback if still empty:
+              if (!last_name && !first_name && rawKeys.length >= 1) {
+                for (const k of rawKeys) {
+                  const v = row[k] != null ? String(row[k]).trim() : '';
+                  if (v && /[a-zA-Z]/.test(v) && !/^\d+([,\.]\d+)?$/.test(v)) {
+                    const parsedName = parseItalianFullName(v);
+                    last_name = parsedName.last_name;
+                    first_name = parsedName.first_name;
+                    break;
+                  }
                 }
+              }
+
+              // De-duplication check: if last_name and first_name were set to identical strings
+              if (last_name && first_name && last_name.toLowerCase().trim() === first_name.toLowerCase().trim()) {
+                const parsedName = parseItalianFullName(last_name);
+                last_name = parsedName.last_name;
+                first_name = parsedName.first_name;
+              }
+
+              // Filter out summary/statistics rows (e.g. "69", "23", or rows without letters)
+              const fullName = `${last_name} ${first_name}`.trim();
+              if (!fullName || !/[a-zA-ZàèéìòùÀÈÉÌÒÙ]/.test(fullName)) {
+                return null;
+              }
+              if (/^(totale|tot|media|conteggio|summary)$/i.test(fullName)) {
+                return null;
               }
 
               // 2. Congregation
@@ -287,8 +293,11 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
               }
               const congregation_name = congRow || lastSeenCongregation;
 
-              // 3. Privileges
-              const priv = getVal(row, 'privilegio', 'privilegi', 'privilege', 'incarico', 'sigla', 'ruolo');
+              // 3. Privileges (handles "privilegio", "privilegi", "inc", "pr", "incarico")
+              let priv = getVal(row, 'privilegio', 'privilegi', 'privilege', 'incarico', 'inc', 'pr', 'sigla', 'ruolo');
+              if (priv) {
+                priv = priv.replace(/falso|vero|true|false/gi, '').trim();
+              }
 
               // 4. Age and Birth Date
               const ageStr = getVal(row, 'eta', 'age', 'anni');
@@ -297,7 +306,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
               let age: number | null = null;
               let birth_date = birthStr;
 
-              // Handle 4-digit years in age column (e.g. user put 1967 in ETA column)
+              // Handle 4-digit years in age column
               if (ageStr) {
                 const num = parseInt(ageStr, 10);
                 if (!isNaN(num)) {
@@ -353,7 +362,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                 address: address.trim(),
                 notes: notes.trim(),
               };
-            }).filter((item: any) => item.first_name || item.last_name);
+            }).filter(Boolean);
 
             if (normalized.length === 0) {
               const detectedCols = rawKeys.join(' | ');
@@ -553,7 +562,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                       <tr key={idx} className="hover:bg-slate-50 transition-colors">
                         <td className="py-2 px-3">
                           <div className="font-bold text-slate-900">
-                            {row.last_name || '—'} {row.first_name || ''}
+                            {getDisplayName(row.last_name, row.first_name)}
                           </div>
                           <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.2 rounded ${
                             row.gender === 'F' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'

@@ -7,6 +7,7 @@ import {
   Plus 
 } from 'lucide-react';
 import { Publisher, Congregation, Privilege } from '../types';
+import { getDisplayName } from '../nameUtils';
 
 interface PublishersTableProps {
   publishers: Publisher[];
@@ -158,7 +159,7 @@ export const PublishersTable: React.FC<PublishersTableProps> = ({
                   {/* Name: Clean and directly visible without initials avatar */}
                   <td className="py-3.5 px-5">
                     <div className="font-bold text-slate-900 text-sm">
-                      {pub.last_name} {pub.first_name}
+                      {getDisplayName(pub.last_name, pub.first_name)}
                     </div>
                     {pub.gender && (
                       <div className="text-[11px] text-slate-400">
@@ -255,7 +256,7 @@ export const PublishersTable: React.FC<PublishersTableProps> = ({
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h4 className="font-bold text-slate-900 text-base leading-tight">
-                    {pub.last_name} {pub.first_name}
+                    {getDisplayName(pub.last_name, pub.first_name)}
                   </h4>
                   {pub.gender && (
                     <div className="text-[11px] text-slate-400 mb-1">

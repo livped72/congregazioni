@@ -5,6 +5,7 @@
  */
 
 import { Congregation, Publisher, Privilege } from './types';
+import { parseItalianFullName, inferGender } from './nameUtils';
 
 const DB_KEY = 'congregazioni_db_v1';
 
@@ -51,6 +52,28 @@ export function loadDb(): AppDatabase {
         }
       }
     }
+
+    // Auto-repair any duplicated names from previous imports
+    if (parsed.publishers && parsed.publishers.length > 0) {
+      let repaired = false;
+      for (const p of parsed.publishers) {
+        if (
+          p.last_name &&
+          p.first_name &&
+          p.last_name.trim().toLowerCase() === p.first_name.trim().toLowerCase()
+        ) {
+          const split = parseItalianFullName(p.last_name);
+          p.last_name = split.last_name;
+          p.first_name = split.first_name;
+          p.gender = inferGender(p.first_name, p.privilege_codes);
+          repaired = true;
+        }
+      }
+      if (repaired) {
+        saveDb(parsed);
+      }
+    }
+
     return parsed;
   } catch {
     return getEmpty();
@@ -200,13 +223,22 @@ export function bulkSavePublishers(publishers: Partial<Publisher & { congregatio
       }
     }
 
+    let lastName = (p.last_name || '').trim();
+    let firstName = (p.first_name || '').trim();
+
+    if (lastName && firstName && lastName.toLowerCase() === firstName.toLowerCase()) {
+      const split = parseItalianFullName(lastName);
+      lastName = split.last_name;
+      firstName = split.first_name;
+    }
+
     // Upsert publisher
     const id = p.id || 'pub-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
     const item: Publisher = {
       id,
       congregation_id: congId,
-      first_name: (p.first_name || '').trim(),
-      last_name: (p.last_name || '').trim(),
+      first_name: firstName,
+      last_name: lastName,
       phone: (p.phone || '').trim(),
       email: (p.email || '').trim(),
       address: (p.address || '').trim(),
