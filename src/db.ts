@@ -22,6 +22,9 @@ const DEFAULT_PRIVILEGES: Privilege[] = [
   { id: 'priv-4', code: 'PA', label: 'Pioniere ausiliario', color: '#06b6d4', is_default: true },
   { id: 'priv-5', code: 'PS', label: 'Pioniere speciale', color: '#8b5cf6', is_default: true },
   { id: 'priv-6', code: 'SG', label: 'Sorvegliante di gruppo', color: '#7c3aed', is_default: true },
+  { id: 'priv-7', code: 'SOG', label: 'Sorvegliante di gruppo', color: '#7c3aed', is_default: true },
+  { id: 'priv-8', code: 'PNB', label: 'Proclamatore non battezzato', color: '#64748b', is_default: true },
+  { id: 'priv-9', code: 'PB', label: 'Proclamatore battezzato', color: '#0ea5e9', is_default: true },
 ];
 
 function getEmpty(): AppDatabase {
@@ -39,7 +42,14 @@ export function loadDb(): AppDatabase {
     if (!raw) return getEmpty();
     const parsed = JSON.parse(raw) as AppDatabase;
     if (!parsed.privileges || parsed.privileges.length === 0) {
-      parsed.privileges = DEFAULT_PRIVILEGES;
+      parsed.privileges = [...DEFAULT_PRIVILEGES];
+    } else {
+      const existingCodes = new Set(parsed.privileges.map((p) => p.code.toUpperCase()));
+      for (const dp of DEFAULT_PRIVILEGES) {
+        if (!existingCodes.has(dp.code.toUpperCase())) {
+          parsed.privileges.push(dp);
+        }
+      }
     }
     return parsed;
   } catch {
@@ -133,26 +143,101 @@ export function deletePublisher(id: string): void {
 }
 
 export function bulkSavePublishers(publishers: Partial<Publisher & { congregation_name?: string }>[]) : { count: number; message: string } {
+  const db = loadDb();
   let count = 0;
+  let defaultCongId = db.congregations[0]?.id;
+
   for (let p of publishers) {
+    let congId = p.congregation_id;
+
     // Resolve congregation_name → congregation_id
-    if (p.congregation_name && !p.congregation_id) {
-      const db = loadDb();
+    if (!congId && p.congregation_name && p.congregation_name.trim()) {
       const congName = p.congregation_name.trim();
       let cong = db.congregations.find(
         (c) => c.name.toLowerCase() === congName.toLowerCase()
       );
       if (!cong) {
-        // Auto-create congregation
-        cong = saveCongregation({ name: congName });
+        cong = {
+          id: 'cong-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+          name: congName,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        db.congregations.push(cong);
       }
-      p = { ...p, congregation_id: cong.id };
+      congId = cong.id;
+      if (!defaultCongId) defaultCongId = cong.id;
     }
-    if (p.congregation_id) {
-      savePublisher(p);
-      count++;
+
+    // Fallback: if still no congregation id, use defaultCongId or create one
+    if (!congId) {
+      if (!defaultCongId) {
+        const fallbackCong: Congregation = {
+          id: 'cong-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+          name: 'Congregazione Principale',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        db.congregations.push(fallbackCong);
+        defaultCongId = fallbackCong.id;
+      }
+      congId = defaultCongId;
     }
+
+    // Auto-register any new privilege codes found into db.privileges
+    if (p.privilege_codes) {
+      const codes = p.privilege_codes.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+      for (const code of codes) {
+        if (!db.privileges.some((pr) => pr.code.toUpperCase() === code)) {
+          db.privileges.push({
+            id: 'priv-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+            code,
+            label: code,
+            color: '#6366f1',
+            is_default: false,
+          });
+        }
+      }
+    }
+
+    // Upsert publisher
+    const id = p.id || 'pub-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+    const item: Publisher = {
+      id,
+      congregation_id: congId,
+      first_name: (p.first_name || '').trim(),
+      last_name: (p.last_name || '').trim(),
+      phone: (p.phone || '').trim(),
+      email: (p.email || '').trim(),
+      address: (p.address || '').trim(),
+      gender: p.gender === 'F' ? 'F' : 'M',
+      privilege_codes: (p.privilege_codes || '').trim(),
+      group_number: (p.group_number || '').trim(),
+      birth_date: p.birth_date ? String(p.birth_date).trim() : '',
+      age: typeof p.age === 'number' && !isNaN(p.age) ? p.age : null,
+      is_active: p.is_active !== false,
+      notes: (p.notes || '').trim(),
+      created_at: p.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const existingIdx = db.publishers.findIndex(
+      (x) => x.id === id || (
+        x.congregation_id === congId &&
+        x.last_name.toLowerCase().trim() === item.last_name.toLowerCase().trim() &&
+        x.first_name.toLowerCase().trim() === item.first_name.toLowerCase().trim()
+      )
+    );
+
+    if (existingIdx >= 0) {
+      db.publishers[existingIdx] = { ...db.publishers[existingIdx], ...item, updated_at: new Date().toISOString() };
+    } else {
+      db.publishers.push(item);
+    }
+    count++;
   }
+
+  saveDb(db);
   return { count, message: `${count} proclamatori importati con successo!` };
 }
 
