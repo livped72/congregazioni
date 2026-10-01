@@ -213,14 +213,18 @@ export const PublishersTable: React.FC<PublishersTableProps> = ({
                   <td className="py-3.5 px-4 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => onEdit(pub)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEdit(pub);
+                        }}
                         className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                         title="Modifica proclamatore"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (confirm(`Sei sicuro di voler eliminare ${pub.first_name} ${pub.last_name}?`)) {
                             onDelete(pub.id);
                           }
@@ -240,40 +244,46 @@ export const PublishersTable: React.FC<PublishersTableProps> = ({
       </div>
 
       {/* Mobile Card List View (Optimized for Smartphones: clean name without initials avatar) */}
-      <div className="md:hidden divide-y divide-slate-100">
+      <div className="md:hidden divide-y divide-slate-100 p-2">
         {sortedPublishers.map((pub) => {
           const privilegeList = pub.privilege_codes 
             ? pub.privilege_codes.split(',').map((c) => c.trim()).filter(Boolean)
             : [];
 
           return (
-            <div key={pub.id} className="p-4 space-y-2.5">
+            <div key={pub.id} className="p-4 space-y-2.5 bg-white mb-2 rounded-xl border border-slate-100 shadow-sm">
               <div className="flex items-start justify-between">
-                <div>
+                <div className="flex-1">
                   <h4 className="font-bold text-slate-900 text-base leading-tight">
                     {pub.last_name} {pub.first_name}
                   </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {getCongregationName(pub.congregation_id)}
-                    {pub.age ? ` • ${pub.age} anni` : ''}
+                  {pub.gender && (
+                    <div className="text-[11px] text-slate-400 mb-1">
+                      {pub.gender === 'M' ? 'Fratello' : 'Sorella'}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-500 mt-1 flex flex-col gap-0.5">
+                    <span className="font-medium text-slate-700">{getCongregationName(pub.congregation_id)}</span>
+                    {pub.age ? <span>{pub.age} anni</span> : null}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0 bg-slate-50 rounded-lg p-0.5 ml-2">
                   <button
-                    onClick={() => onEdit(pub)}
-                    className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg"
+                    onClick={(e) => { e.stopPropagation(); onEdit(pub); }}
+                    className="p-2 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md shadow-xs transition-colors"
                     title="Modifica"
                   >
                     <Edit3 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (confirm(`Eliminare ${pub.first_name} ${pub.last_name}?`)) {
                         onDelete(pub.id);
                       }
                     }}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"
+                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white rounded-md shadow-xs transition-colors"
                     title="Elimina"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -283,16 +293,18 @@ export const PublishersTable: React.FC<PublishersTableProps> = ({
 
               {/* Privileges */}
               {privilegeList.length > 0 && (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1 mt-2">
                   {privilegeList.map((code) => getPrivilegeBadge(code))}
                 </div>
               )}
 
               {/* Notes */}
               {pub.notes && (
-                <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg italic">
-                  {pub.notes}
-                </p>
+                <div className="mt-2 pt-2 border-t border-slate-50">
+                  <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg italic line-clamp-3">
+                    {pub.notes}
+                  </p>
+                </div>
               )}
             </div>
           );

@@ -972,7 +972,15 @@ router.post('/publishers/bulk-import', authMiddleware, async (req, res): Promise
         }
       }
 
+      // Check for existing publisher to prevent duplicates
+      const allPubs = await db.getPublishers();
+      const existing = allPubs.find((p) => 
+        p.first_name.toLowerCase() === item.first_name.trim().toLowerCase() && 
+        p.last_name.toLowerCase() === item.last_name.trim().toLowerCase()
+      );
+
       processed.push({
+        id: existing ? existing.id : undefined,
         congregation_id: congId,
         first_name: item.first_name.trim(),
         last_name: item.last_name.trim(),

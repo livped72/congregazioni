@@ -46,6 +46,7 @@ export const App: React.FC = () => {
   // Filter state (no group filter)
   const [selectedCongregationId, setSelectedCongregationId] = useState<string | null>(null);
   const [selectedPrivilege, setSelectedPrivilege] = useState<string | null>(null);
+  const [selectedGender, setSelectedGender] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
@@ -213,13 +214,11 @@ export const App: React.FC = () => {
     }
 
     const headers = [
-      'Cognome',
-      'Nome',
-      'Congregazione',
-      'Privilegio',
-      'Età',
-      'Data di Nascita',
-      'Note'
+      'COGNOME E NOME',
+      'CONGREGAZIONE',
+      'PRIVILEGIO',
+      'ETÀ',
+      'NOTE'
     ];
 
     const escapeCsv = (str: any) => {
@@ -231,12 +230,10 @@ export const App: React.FC = () => {
     const rows = filteredPublishers.map((p) => {
       const cong = congregations.find((c) => c.id === p.congregation_id);
       return [
-        escapeCsv(p.last_name),
-        escapeCsv(p.first_name),
+        escapeCsv(`${p.last_name} ${p.first_name}`.trim()),
         escapeCsv(cong ? cong.name : ''),
         escapeCsv(p.privilege_codes || ''),
         escapeCsv(p.age || ''),
-        escapeCsv(p.birth_date || ''),
         escapeCsv(p.notes || '')
       ].join(',');
     });
@@ -285,6 +282,11 @@ export const App: React.FC = () => {
         }
       }
 
+      // Gender filter
+      if (selectedGender && pub.gender !== selectedGender) {
+        return false;
+      }
+
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -303,7 +305,7 @@ export const App: React.FC = () => {
 
       return true;
     });
-  }, [publishers, selectedCongregationId, selectedPrivilege, searchQuery]);
+  }, [publishers, selectedCongregationId, selectedPrivilege, selectedGender, searchQuery]);
 
   // Initial loading state
   if (isAuthLoading) {
@@ -382,6 +384,8 @@ export const App: React.FC = () => {
           privileges={privileges}
           selectedPrivilege={selectedPrivilege}
           onSelectPrivilege={(code) => setSelectedPrivilege(code)}
+          selectedGender={selectedGender}
+          onSelectGender={(g) => setSelectedGender(g)}
           searchQuery={searchQuery}
           onSearchChange={(q) => setSearchQuery(q)}
           selectedCongregationId={selectedCongregationId}

@@ -58,8 +58,17 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
             return '';
           };
 
-          const first_name = getVal('nome', 'first_name', 'firstname', 'proclamatore_nome');
-          const last_name = getVal('cognome', 'last_name', 'lastname');
+          let first_name = getVal('nome', 'first_name', 'firstname', 'proclamatore_nome');
+          let last_name = getVal('cognome', 'last_name', 'lastname');
+          
+          const fullName = getVal('cognome e nome', 'nome e cognome');
+          if (!first_name && !last_name && fullName) {
+            const parts = fullName.split(' ');
+            if (parts.length > 0) {
+              last_name = parts[0];
+              first_name = parts.slice(1).join(' ');
+            }
+          }
           const cong = getVal('congregazione', 'congregation', 'congregation_name');
           const priv = getVal('privilegio', 'privilegi', 'privilege', 'incarico', 'sigla');
           const birth = getVal('data di nascita', 'data_nascita', 'birth_date', 'nascita');
@@ -98,12 +107,12 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
 
   const handleDownloadTemplate = () => {
     const csvContent = 
-      "Cognome,Nome,Congregazione,Privilegio,Età,Data di Nascita,Telefono,Email,Indirizzo,Note\n" +
-      "Rossi,Marco,Milano Sud,SM,38,1988-04-12,+39 340 1234567,marco.rossi@email.it,Via Dante 10 Milano,Reparto audio\n" +
-      "Bianchi,Elena,Milano Sud,PA,31,1995-09-20,+39 349 9876543,elena.b@email.it,Via Garibaldi 15 Milano,Pioniera ausiliaria\n" +
-      "Verdi,Antonio,Roma Nord,A,52,1974-02-18,+39 347 1122334,antonio.v@email.it,Via Nomentana 100 Roma,Coordinatore\n" +
-      "Russo,Chiara,Roma Nord,PR,36,1989-07-30,+39 328 5566778,chiara.r@email.it,Viale Somalia 40 Roma,Pioniera regolare\n" +
-      "Esposito,Giuseppe,Napoli Centro,SG,43,1982-11-05,+39 333 4567890,giuseppe.e@email.it,Via Toledo 22 Napoli,Sorvegliante gruppo";
+      "COGNOME E NOME,CONGREGAZIONE,PRIVILEGIO,ETÀ,NOTE\n" +
+      "Rossi Marco,Milano Sud,SM,38,Reparto audio\n" +
+      "Bianchi Elena,Milano Sud,PA,31,Pioniera ausiliaria\n" +
+      "Verdi Antonio,Roma Nord,A,52,Coordinatore\n" +
+      "Russo Chiara,Roma Nord,PR,36,Pioniera regolare\n" +
+      "Esposito Giuseppe,Napoli Centro,SG,43,Sorvegliante gruppo";
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -251,21 +260,21 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 sticky top-0 text-slate-700 font-bold">
                     <tr>
-                      <th className="py-2 px-3">Cognome</th>
-                      <th className="py-2 px-3">Nome</th>
+                      <th className="py-2 px-3">Cognome e Nome</th>
                       <th className="py-2 px-3">Congregazione</th>
                       <th className="py-2 px-3">Privilegio</th>
                       <th className="py-2 px-3">Età</th>
+                      <th className="py-2 px-3">Note</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {parsedData.slice(0, 15).map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
-                        <td className="py-1.5 px-3 font-semibold">{row.last_name || '—'}</td>
-                        <td className="py-1.5 px-3">{row.first_name || '—'}</td>
+                        <td className="py-1.5 px-3 font-semibold">{row.last_name || '—'} {row.first_name || ''}</td>
                         <td className="py-1.5 px-3 text-slate-500">{row.congregation_name || '—'}</td>
                         <td className="py-1.5 px-3 font-mono font-bold text-blue-600">{row.privilege_codes || '—'}</td>
                         <td className="py-1.5 px-3">{row.age || '—'}</td>
+                        <td className="py-1.5 px-3 truncate max-w-[150px]" title={row.notes}>{row.notes || '—'}</td>
                       </tr>
                     ))}
                   </tbody>

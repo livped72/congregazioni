@@ -6,6 +6,8 @@ interface PrivilegeFilterProps {
   privileges: Privilege[];
   selectedPrivilege: string | null;
   onSelectPrivilege: (code: string | null) => void;
+  selectedGender: string | null;
+  onSelectGender: (g: string | null) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   selectedCongregationId: string | null;
@@ -20,6 +22,8 @@ export const PrivilegeFilter: React.FC<PrivilegeFilterProps> = ({
   privileges,
   selectedPrivilege,
   onSelectPrivilege,
+  selectedGender,
+  onSelectGender,
   searchQuery,
   onSearchChange,
   selectedCongregationId,
@@ -146,6 +150,43 @@ export const PrivilegeFilter: React.FC<PrivilegeFilterProps> = ({
               </button>
             );
           })}
+        </div>
+      </div>
+      
+      {/* Gender Filter */}
+      <div className="pt-3 border-t border-slate-100 flex items-center gap-3">
+        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Mostra:</span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onSelectGender(null)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+              selectedGender === null
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Tutti
+          </button>
+          <button
+            onClick={() => onSelectGender('M')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+              selectedGender === 'M'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Fratelli
+          </button>
+          <button
+            onClick={() => onSelectGender('F')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+              selectedGender === 'F'
+                ? 'bg-pink-600 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Sorelle
+          </button>
         </div>
       </div>
     </div>
