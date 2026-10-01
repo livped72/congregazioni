@@ -276,6 +276,12 @@ export class DatabaseService {
     }
   }
 
+  public async ensureConnectionFromHeader(headerUrl: string) {
+    if (headerUrl && headerUrl.startsWith('postgres') && (!this.isNeonConnected || this.neonUrl !== headerUrl)) {
+      await this.connectNeon(headerUrl, false);
+    }
+  }
+
   private async runNeonMigrations() {
     if (!this.pgPool) return;
     const client = await this.pgPool.connect();
@@ -706,6 +712,15 @@ export const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Vercel stateless Neon recovery middleware
+app.use(async (req, res, next) => {
+  const neonUrl = req.headers['x-neon-url'] as string;
+  if (neonUrl) {
+    await db.ensureConnectionFromHeader(neonUrl);
+  }
+  next();
+});
 
 // Helper auth middleware
 const authMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> => {

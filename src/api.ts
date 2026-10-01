@@ -3,6 +3,8 @@ import { Congregation, Publisher, Privilege, Stats, DbStatus } from './types';
 const TOKEN_KEY = 'congregazioni_token';
 const USERNAME_KEY = 'congregazioni_username';
 
+const NEON_URL_KEY = 'congregazioni_neon_url';
+
 export const auth = {
   getToken: () => localStorage.getItem(TOKEN_KEY),
   getUsername: () => localStorage.getItem(USERNAME_KEY),
@@ -13,8 +15,11 @@ export const auth = {
   clearSession: () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USERNAME_KEY);
+    // non eliminiamo il neon_url per permettere la connessione al db al login
   },
-  isAuthenticated: () => !!localStorage.getItem(TOKEN_KEY)
+  isAuthenticated: () => !!localStorage.getItem(TOKEN_KEY),
+  getNeonUrl: () => localStorage.getItem(NEON_URL_KEY),
+  setNeonUrl: (url: string) => localStorage.setItem(NEON_URL_KEY, url)
 };
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -26,6 +31,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  const neonUrl = auth.getNeonUrl();
+  if (neonUrl) {
+    headers['x-neon-url'] = neonUrl;
   }
 
   const res = await fetch(endpoint, {
@@ -81,11 +91,16 @@ export const api = {
 
   // Neon
   getNeonStatus: () => request<DbStatus>('/api/neon/status'),
-  connectNeon: (connectionString: string) =>
-    request<{ success: boolean; message: string; status: DbStatus }>('/api/neon/connect', {
+  connectNeon: async (connectionString: string) => {
+    const res = await request<{ success: boolean; message: string; status: DbStatus }>('/api/neon/connect', {
       method: 'POST',
       body: JSON.stringify({ connectionString })
-    }),
+    });
+    if (res.success) {
+      auth.setNeonUrl(connectionString);
+    }
+    return res;
+  },
 
   // Stats
   getStats: () => request<Stats>('/api/stats'),
