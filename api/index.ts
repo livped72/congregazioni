@@ -514,6 +514,10 @@ export class DatabaseService {
     await this.ensureInit();
     if (this.isNeonConnected && this.pgPool) {
       try {
+        // Explictly delete associated publishers first to avoid foreign key constraint violations
+        // in case the ON DELETE CASCADE was not applied to the existing schema
+        await this.pgPool.query('DELETE FROM congregazioni_publishers WHERE congregation_id = $1', [id]);
+        
         await this.pgPool.query('DELETE FROM congregazioni_congregations WHERE id = $1', [id]);
       } catch (e) {
         console.error('Error deleting congregation from Neon:', e);
