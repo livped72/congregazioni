@@ -8,7 +8,7 @@ interface CsvImportModalProps {
   onClose: () => void;
   congregations: Congregation[];
   onImportSuccess: () => void;
-  onBulkImport: (publishers: any[]) => Promise<{ count: number; message: string }>;
+  onBulkImport: (publishers: any[]) => { count: number; message: string };
 }
 
 export const CsvImportModal: React.FC<CsvImportModalProps> = ({
@@ -136,7 +136,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
         congregation_id: targetCongregationId || p.congregation_id
       }));
 
-      const res = await onBulkImport(toSend);
+      const res = onBulkImport(toSend);
       setSuccessMessage(res.message || `${res.count} proclamatori importati con successo!`);
       setTimeout(() => {
         onImportSuccess();
