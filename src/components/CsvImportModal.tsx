@@ -39,71 +39,151 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
     setError(null);
     setSuccessMessage(null);
 
-    Papa.parse(csvFile, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        if (!results.data || results.data.length === 0) {
-          setError('Il file CSV selezionato è vuoto o non leggibile.');
-          return;
-        }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        let text = e.target?.result as string;
+        // Strip BOM
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
 
-        const normalized = results.data.map((row: any) => {
-          const keys = Object.keys(row);
-          const getVal = (...variants: string[]) => {
-            for (const v of variants) {
-              const foundKey = keys.find((k) => k.trim().toLowerCase() === v.toLowerCase());
-              if (foundKey && row[foundKey]) return String(row[foundKey]).trim();
-            }
-            return '';
-          };
+        // Auto-detect separator: count occurrences in first 3 lines
+        const firstLines = text.split('\n').slice(0, 3).join('\n');
+        const count = (s: string, c: string) => (s.split(c).length - 1);
+        const commas = count(firstLines, ',');
+        const semis = count(firstLines, ';');
+        const tabs = count(firstLines, '\t');
+        let sep = ',';
+        if (semis > commas && semis > tabs) sep = ';';
+        else if (tabs > commas && tabs > semis) sep = '\t';
 
-          let first_name = getVal('nome', 'first_name', 'firstname', 'proclamatore_nome');
-          let last_name = getVal('cognome', 'last_name', 'lastname');
-          
-          const fullName = getVal('cognome e nome', 'nome e cognome');
-          if (!first_name && !last_name && fullName) {
-            const parts = fullName.split(' ');
-            if (parts.length > 0) {
-              last_name = parts[0];
-              first_name = parts.slice(1).join(' ');
+        Papa.parse(text, {
+          delimiter: sep,
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            if (!results.data || results.data.length === 0) {
+              setError('Il file CSV selezionato e vuoto o non leggibile.');
+              return;
             }
+
+            // Normalize a key: lowercase, strip accents, strip non-alphanum except space
+            const normKey = (s: string) =>
+              s.toLowerCase()
+               .normalize('NFD')
+               .replace(/[\u0300-\u036f]/g, '')
+               .replace(/[^a-z0-9 ]/g, '')
+               .trim();
+
+            // Build a normalized key map
+            const rawKeys = Object.keys((results.data[0] as any) || {});
+            const keyMap: Record<string, string> = {};
+            rawKeys.forEach((k) => { keyMap[normKey(k)] = k; });
+
+            // Flexible getter: tries exact normalized match, then partial match
+            const getVal = (row: any, ...variants: string[]): string => {
+              for (const v of variants) {
+                const nv = normKey(v);
+                if (keyMap[nv] && row[keyMap[nv]]) return String(row[keyMap[nv]]).trim();
+              }
+              // Partial match fallback
+              for (const v of variants) {
+                const nv = normKey(v);
+                const partialKey = Object.keys(keyMap).find((k) => k.includes(nv) || nv.includes(k));
+                if (partialKey && keyMap[partialKey] && row[keyMap[partialKey]]) {
+                  return String(row[keyMap[partialKey]]).trim();
+                }
+              }
+              return '';
+            };
+
+            const normalized = (results.data as any[]).map((row: any) => {
+              let first_name = getVal(row,
+                'nome', 'first name', 'firstname', 'first_name',
+                'proclamatore nome', 'nome proclamatore', 'name'
+              );
+              let last_name = getVal(row,
+                'cognome', 'last name', 'lastname', 'last_name',
+                'proclamatore cognome', 'cognome proclamatore', 'surname'
+              );
+
+              // Try combined column
+              if (!first_name && !last_name) {
+                const fullName = getVal(row,
+                  'cognome e nome', 'nome e cognome', 'nominativo',
+                  'nome completo', 'full name', 'fullname', 'proclamatore'
+                );
+                if (fullName) {
+                  const parts = fullName.trim().split(/\s+/);
+                  last_name = parts[0] || '';
+                  first_name = parts.slice(1).join(' ');
+                }
+              }
+
+              // Positional fallback: use first two columns
+              if (!first_name && !last_name && rawKeys.length >= 2) {
+                const v0 = row[rawKeys[0]] ? String(row[rawKeys[0]]).trim() : '';
+                const v1 = row[rawKeys[1]] ? String(row[rawKeys[1]]).trim() : '';
+                if (v0 && v1) { last_name = v0; first_name = v1; }
+                else if (v0) {
+                  const parts = v0.split(/\s+/);
+                  last_name = parts[0] || '';
+                  first_name = parts.slice(1).join(' ');
+                }
+              }
+
+              const cong = getVal(row, 'congregazione', 'congregation', 'congregation name', 'cong');
+              const priv = getVal(row, 'privilegio', 'privilegi', 'privilege', 'incarico', 'sigla', 'ruolo');
+              const birth = getVal(row, 'data di nascita', 'data nascita', 'birth date', 'birth_date', 'nascita');
+              const age = getVal(row, 'eta', 'eta anni', 'age', 'anni');
+              const phone = getVal(row, 'telefono', 'cellulare', 'tel', 'phone', 'mobile');
+              const email = getVal(row, 'email', 'e-mail', 'mail');
+              const address = getVal(row, 'indirizzo', 'address', 'residenza', 'via');
+              const genderRaw = getVal(row, 'sesso', 'genere', 'gender');
+              const notes = getVal(row, 'note', 'annotazioni', 'notes', 'commenti');
+
+              const gender = genderRaw
+                ? (genderRaw.toUpperCase().startsWith('F') || genderRaw.toLowerCase().includes('sorella') ? 'F' : 'M')
+                : undefined;
+
+              return {
+                first_name,
+                last_name,
+                congregation_name: cong,
+                privilege_codes: priv,
+                birth_date: birth,
+                age: age ? parseInt(age) : null,
+                phone,
+                email,
+                address,
+                gender,
+                notes
+              };
+            }).filter((item: any) => item.first_name || item.last_name);
+
+            if (normalized.length === 0) {
+              const detected = rawKeys.join(', ');
+              setError(
+                `Nessuna riga valida trovata. Intestazioni rilevate: [${detected}].\n` +
+                `Il file deve avere almeno una colonna "Nome", "Cognome", "Cognome e Nome" o "Nominativo". ` +
+                `Scarica il modello CSV per vedere il formato corretto.`
+              );
+              return;
+            }
+
+            setParsedData(normalized);
+          },
+          error: (err: any) => {
+            setError(`Errore lettura CSV: ${err.message}`);
           }
-          const cong = getVal('congregazione', 'congregation', 'congregation_name');
-          const priv = getVal('privilegio', 'privilegi', 'privilege', 'incarico', 'sigla');
-          const birth = getVal('data di nascita', 'data_nascita', 'birth_date', 'nascita');
-          const age = getVal('eta', 'età', 'age', 'anni');
-          const phone = getVal('telefono', 'cellulare', 'tel', 'phone');
-          const email = getVal('email', 'e-mail', 'mail');
-          const address = getVal('indirizzo', 'address', 'residenza');
-          const notes = getVal('note', 'annotazioni');
-
-          return {
-            first_name,
-            last_name,
-            congregation_name: cong,
-            privilege_codes: priv,
-            birth_date: birth,
-            age: age ? parseInt(age) : null,
-            phone,
-            email,
-            address,
-            notes
-          };
-        }).filter((item: any) => item.first_name || item.last_name);
-
-        if (normalized.length === 0) {
-          setError('Non sono state trovate righe valide con "Nome" o "Cognome" nel file CSV.');
-          return;
-        }
-
-        setParsedData(normalized);
-      },
-      error: (err) => {
-        setError(`Errore durante la lettura del CSV: ${err.message}`);
+        });
+      } catch (err: any) {
+        setError(`Errore: ${err.message}`);
       }
-    });
+    };
+    reader.onerror = () => setError('Impossibile leggere il file. Prova a salvarlo come CSV UTF-8.');
+    reader.readAsText(csvFile, 'UTF-8');
   };
+
 
   const handleDownloadTemplate = () => {
     const csvContent = 

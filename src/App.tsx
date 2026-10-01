@@ -263,9 +263,9 @@ export const App: React.FC = () => {
   };
 
   const handleBulkImport = (pubs: any[]) => {
-    const count = bulkSavePublishers(pubs);
+    const res = bulkSavePublishers(pubs);
     loadData();
-    return { success: true, count, message: `${count} proclamatori importati.` };
+    return res;
   };
 
   // ── Privileges ──

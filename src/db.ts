@@ -132,13 +132,28 @@ export function deletePublisher(id: string): void {
   saveDb(db);
 }
 
-export function bulkSavePublishers(publishers: Partial<Publisher>[]): number {
+export function bulkSavePublishers(publishers: Partial<Publisher & { congregation_name?: string }>[]) : { count: number; message: string } {
   let count = 0;
-  for (const p of publishers) {
-    savePublisher(p);
-    count++;
+  for (let p of publishers) {
+    // Resolve congregation_name → congregation_id
+    if (p.congregation_name && !p.congregation_id) {
+      const db = loadDb();
+      const congName = p.congregation_name.trim();
+      let cong = db.congregations.find(
+        (c) => c.name.toLowerCase() === congName.toLowerCase()
+      );
+      if (!cong) {
+        // Auto-create congregation
+        cong = saveCongregation({ name: congName });
+      }
+      p = { ...p, congregation_id: cong.id };
+    }
+    if (p.congregation_id) {
+      savePublisher(p);
+      count++;
+    }
   }
-  return count;
+  return { count, message: `${count} proclamatori importati con successo!` };
 }
 
 // ─── PRIVILEGES ─────────────────────────────────────────────────────────────
