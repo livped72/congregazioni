@@ -139,9 +139,16 @@ export class DatabaseService {
   private pgPool: Pool | null = null;
   private neonUrl: string = '';
   private isNeonConnected: boolean = false;
+  private initPromise: Promise<void> | null = null;
 
   constructor() {
-    this.init();
+    this.initPromise = this.init();
+  }
+
+  private async ensureInit() {
+    if (this.initPromise) {
+      await this.initPromise;
+    }
   }
 
   private readLocal(): LocalDatabase {
@@ -397,7 +404,8 @@ export class DatabaseService {
     }
   }
 
-  public getStatus() {
+  public async getStatus() {
+    await this.ensureInit();
     return {
       connectedToNeon: this.isNeonConnected,
       neonUrl: this.isNeonConnected ? this.maskConnectionString(this.neonUrl) : (this.neonUrl ? this.maskConnectionString(this.neonUrl) : ''),
@@ -417,6 +425,7 @@ export class DatabaseService {
 
   // ---------------- User & Auth ----------------
   public async getUser(): Promise<{ username: string; password_hash: string } | null> {
+    await this.ensureInit();
     if (this.isNeonConnected && this.pgPool) {
       try {
         const res = await this.pgPool.query('SELECT username, password_hash FROM congregazioni_users LIMIT 1');
@@ -432,6 +441,7 @@ export class DatabaseService {
   }
 
   public async setUser(username: string, password_hash: string) {
+    await this.ensureInit();
     const local = this.readLocal();
     local.user = { username, password_hash, updated_at: new Date().toISOString() };
     this.saveLocal(local);
@@ -452,6 +462,7 @@ export class DatabaseService {
 
   // ---------------- Congregations ----------------
   public async getCongregations(): Promise<any[]> {
+    await this.ensureInit();
     if (this.isNeonConnected && this.pgPool) {
       try {
         const res = await this.pgPool.query('SELECT * FROM congregazioni_congregations ORDER BY name ASC');
@@ -472,6 +483,8 @@ export class DatabaseService {
       address: c.address || '',
       notes: c.notes || ''
     };
+
+    await this.ensureInit();
 
     if (this.isNeonConnected && this.pgPool) {
       try {
@@ -498,6 +511,7 @@ export class DatabaseService {
   }
 
   public async deleteCongregation(id: string) {
+    await this.ensureInit();
     if (this.isNeonConnected && this.pgPool) {
       try {
         await this.pgPool.query('DELETE FROM congregazioni_congregations WHERE id = $1', [id]);
@@ -513,6 +527,7 @@ export class DatabaseService {
 
   // ---------------- Publishers ----------------
   public async getPublishers(): Promise<any[]> {
+    await this.ensureInit();
     if (this.isNeonConnected && this.pgPool) {
       try {
         const res = await this.pgPool.query('SELECT * FROM congregazioni_publishers ORDER BY last_name ASC, first_name ASC');
@@ -545,6 +560,8 @@ export class DatabaseService {
       is_active: p.is_active !== false,
       notes: p.notes || ''
     };
+
+    await this.ensureInit();
 
     if (this.isNeonConnected && this.pgPool) {
       try {
@@ -590,6 +607,7 @@ export class DatabaseService {
   }
 
   public async deletePublisher(id: string) {
+    await this.ensureInit();
     if (this.isNeonConnected && this.pgPool) {
       try {
         await this.pgPool.query('DELETE FROM congregazioni_publishers WHERE id = $1', [id]);
@@ -610,6 +628,7 @@ export class DatabaseService {
 
   // ---------------- Privileges ----------------
   public async getPrivileges(): Promise<any[]> {
+    await this.ensureInit();
     if (this.isNeonConnected && this.pgPool) {
       try {
         const res = await this.pgPool.query('SELECT * FROM congregazioni_privileges ORDER BY is_default DESC, code ASC');
@@ -631,6 +650,8 @@ export class DatabaseService {
       color: priv.color || '#3b82f6',
       is_default: !!priv.is_default
     };
+
+    await this.ensureInit();
 
     if (this.isNeonConnected && this.pgPool) {
       try {
@@ -657,6 +678,7 @@ export class DatabaseService {
   }
 
   public async deletePrivilege(code: string) {
+    await this.ensureInit();
     if (this.isNeonConnected && this.pgPool) {
       try {
         await this.pgPool.query('DELETE FROM congregazioni_privileges WHERE code = $1', [code]);
@@ -708,7 +730,7 @@ router.get('/auth/status', async (req, res) => {
     res.json({
       isInitialized: !!user,
       username: user ? user.username : null,
-      dbStatus: db.getStatus()
+      dbStatus: await db.getStatus()
     });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -837,8 +859,8 @@ router.post('/auth/change-credentials', authMiddleware, async (req, res): Promis
 });
 
 // ---------------- NEON POSTGRES SYNC ----------------
-router.get('/neon/status', (req, res) => {
-  res.json(db.getStatus());
+router.get('/neon/status', async (req, res) => {
+  res.json(await db.getStatus());
 });
 
 router.post('/neon/connect', authMiddleware, async (req, res): Promise<void> => {
@@ -858,7 +880,7 @@ router.post('/neon/connect', authMiddleware, async (req, res): Promise<void> => 
     res.json({
       success: true,
       message: 'Connessione a Neon PostgreSQL completata e dati sincronizzati!',
-      status: db.getStatus()
+      status: await db.getStatus()
     });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
